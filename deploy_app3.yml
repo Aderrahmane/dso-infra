@@ -1,0 +1,78 @@
+- name: mon deuxeme deploiment 
+  hosts: my_infra
+  become: true
+
+  vars_files:
+    - "varibale_pour_host/{{ inventory_hostname }}.yml"
+
+  vars:
+    repo_app: https://github.com/gaeldb/to-do-list-unsecure.git
+    application_dir: /opt/todolist
+    venv_dir: /opt/venv-todolist
+    application_branch: main
+  tasks:
+    - name: Ping
+      ansible.builtin.ping:
+
+    - name: installation des dependences
+      ansible.builtin.apt:
+        name:
+          - python3
+          - python3-venv
+          - python3-pip
+          - git
+        state: present
+        update_cache: true
+
+    - name: recuperation des resources depuis github
+      ansible.builtin.git:
+        repo: "{{ repo_app }}"
+        dest: "{{ application_dir }}"
+        version: "{{ application_branch }}"
+        force: true
+
+    - name: passage de Django en mode production
+      ansible.builtin.lineinfile:
+        path: "{{ application_dir }}/todo/settings.py"
+        regexp: '^DEBUG\s*='
+        line: "DEBUG = False"
+      when: is_env_prod | bool
+
+    - name: installer les dependances Python
+      ansible.builtin.pip:
+        name:
+          - django==6
+          - pyyaml==5.3.1
+          - requests==2.19.1
+          - gunicorn
+        virtualenv: "{{ venv_dir }}"
+        virtualenv_command: python3 -m venv
+
+    - name: appliquer les migrations
+      ansible.builtin.command:
+        cmd: "{{ venv_dir }}/bin/python manage.py migrate --noinput"
+        chdir: "{{ application_dir }}"
+
+    - name: deploiment du service systemd
+      ansible.builtin.template:
+        src: templates/todolist.service.j2
+        dest: /etc/systemd/system/todolist.service
+        mode: "0644"
+
+    - name: activation et demarrage du service
+      ansible.builtin.systemd:
+        name: todolist
+        state: restarted
+        enabled: true
+        daemon_reload: true
+
+    - name: Verification que l'application repond
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}/"
+        status_code: 200
+      delegate_to: localhost
+      become: false
+      register: resultat
+      until: resultat.status == 200
+      retries: 3
+      delay: 3

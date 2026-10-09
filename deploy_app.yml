@@ -1,0 +1,6 @@
+- name: deploiment ping 
+  hosts: my_infra
+  tasks: 
+  - name: Ping
+    ansible.builtin.ping:
+

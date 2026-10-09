@@ -1,0 +1,29 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/debian-13"
+
+config.vm.provision "shell", inline:
+ <<-SHELL
+    id admin || useradd -m -s /bin/bash admin
+    install -d -m 700 -o admin -g admin /home/admin/.ssh
+    install -m 600 -o admin -g admin /vagrant/id-rda-infra.key.pub /home/admin/.ssh/authorized_keys
+    echo "admin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/admin
+  SHELL
+
+  config.vm.define "app-dev" do |node|
+    node.vm.network "private_network", ip: "192.168.56.10"
+	node.vm.hostname = "app-dev"
+  end
+
+  config.vm.define "app-prod1" do |node|
+    node.vm.network "private_network", ip: "192.168.56.11"
+	node.vm.hostname = "app-prod1"
+  end
+    config.vm.define "jenkins" do |node|
+    node.vm.hostname = "jenkins"
+    node.vm.network "private_network", ip: "192.168.56.12"
+    node.vm.provider "virtualbox" do |vb|
+      vb.name = "jenkins"
+      vb.memory = 2048
+    end
+  end
+end
