@@ -76,3 +76,22 @@
       until: resultat.status == 200
       retries: 3
       delay: 3
+
+    - name: installation du UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: autorisation SSH et HTTP
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "22"
+        - "80"
+
+    - name: activation UFW avec le deny by defaut
+      community.general.ufw:
+        state: enabled
+        policy: deny
