@@ -1,0 +1,127 @@
+- name: supervision
+  hosts: supervision
+  become: true
+
+  vars:
+    mdp_grafana_admin: "J4SupConAtt"
+    mon_reseau_prive: "192.168.56.0/24"
+    cibles_node:
+      - "192.168.56.10:9100"
+      - "192.168.56.11:9100"
+      - "192.168.56.12:9100"
+
+  handlers:
+    - name: redemarrage de prometheus
+      ansible.builtin.service:
+        name: prometheus
+        state: restarted
+    - name: redemarrage de grafana
+      ansible.builtin.service:
+        name: grafana-server
+        state: restarted
+
+  tasks:
+    - name: Installation de Prometheus et prerequis
+      ansible.builtin.apt:
+        name:
+          - prometheus
+          - gnupg
+          - apt-transport-https
+        state: present
+        update_cache: true
+
+    - name: Creation du dossier des keys APT
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Cle du depot Grafana
+      ansible.builtin.get_url:
+        url: https://apt.grafana.com/gpg.key
+        dest: /etc/apt/keyrings/grafana.asc
+        mode: "0644"
+
+    - name: Depot Grafana
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+        filename: grafana
+        state: present
+
+    - name: Installation Grafana
+      ansible.builtin.apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+    - name: Configuration Prometheus
+      ansible.builtin.copy:
+        dest: /etc/prometheus/prometheus.yml
+        mode: "0644"
+        content: |
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: prometheus
+              static_configs:
+                - targets: ['localhost:9090']
+            - job_name: node
+              static_configs:
+                - targets: {{ cibles_node | to_json }}
+      notify: redemarrage de prometheus
+
+    - name: Mot de passe admin Grafana
+      community.general.ini_file:
+        path: /etc/grafana/grafana.ini
+        section: security
+        option: admin_password
+        value: "{{ mdp_grafana_admin }}"
+        no_extra_spaces: true
+      notify: redemarrage de grafana
+
+    - name: Source de donnees Prometheus dans Grafana
+      ansible.builtin.copy:
+        dest: /etc/grafana/provisioning/datasources/prometheus.yml
+        mode: "0644"
+        content: |
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              access: proxy
+              url: http://localhost:9090
+              isDefault: true
+      notify: redemarrage de grafana
+
+    - name: Activer et demarrer Prometheus
+      ansible.builtin.service:
+        name: prometheus
+        state: started
+        enabled: true
+
+    - name: Activer et demarrer Grafana
+      ansible.builtin.service:
+        name: grafana-server
+        state: started
+        enabled: true
+
+    - name: Installation du UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Autorisation pour SSH, Grafana, Prometheus depuis le reseau prive
+      community.general.ufw:
+        rule: allow
+        src: "{{ mon_reseau_prive }}"
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "22"
+        - "3000"
+        - "9090"
+
+    - name: Activation UFW 
+      community.general.ufw:
+        state: enabled
+        policy: deny

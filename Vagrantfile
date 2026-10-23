@@ -21,9 +21,17 @@ config.vm.provision "shell", inline:
     config.vm.define "jenkins" do |node|
     node.vm.hostname = "jenkins"
     node.vm.network "private_network", ip: "192.168.56.12"
-    node.vm.provider "virtualbox" do |vb|
-      vb.name = "jenkins"
-      vb.memory = 2048
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = "jenkins"
+        vb.memory = 2048
+      end
     end
-  end
+    config.vm.define "monitoring" do |node|
+    node.vm.hostname= "monitoring"
+    node.vm.network "private_network", ip: "192.168.56.13"
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = "monitoring"
+        vb.memory = 2048
+      end
+    end
 end
