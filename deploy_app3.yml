@@ -95,3 +95,19 @@
       community.general.ufw:
         state: enabled
         policy: deny
+
+    - name: Configuration SSH durcie
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/00-hardening.conf
+        mode: "0644"
+        content: |
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          PubkeyAuthentication yes
+      notify: Redemarrer ssh
+  handlers:
+    - name: Redemarrer ssh
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
